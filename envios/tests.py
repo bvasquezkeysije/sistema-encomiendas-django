@@ -1,12 +1,13 @@
 from datetime import timedelta
 from decimal import Decimal
+from datetime import date
 
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
 
 from clientes.models import Cliente
-from config.choices import EstadoEnvio, TipoDocumento
+from config.choices import EstadoEnvio, EstadoGeneral, TipoDocumento
 from envios.models import Empleado, Encomienda, HistorialEstado
 from rutas.models import Ruta
 
@@ -24,25 +25,33 @@ class EncomiendaModelTests(TestCase):
             apellidos="Perez",
             tipo_doc=TipoDocumento.DNI,
             nro_doc="12345678",
+            estado=EstadoGeneral.ACTIVO,
         )
         self.destinatario = Cliente.objects.create(
             nombres="Ana",
             apellidos="Lopez",
             tipo_doc=TipoDocumento.DNI,
             nro_doc="87654321",
+            estado=EstadoGeneral.ACTIVO,
         )
         self.ruta = Ruta.objects.create(
             codigo="LIM-TRU",
             origen="Lima",
             destino="Trujillo",
+            precio_base=25,
+            dias_entrega=2,
+            estado=EstadoGeneral.ACTIVO,
             distancia_km=560,
             activa=True,
         )
         self.empleado = Empleado.objects.create(
+            codigo="EMP001",
             nombres="Luis",
             apellidos="Gomez",
-            nro_doc="44556677",
-            activo=True,
+            cargo="Operador de envios",
+            email="luis@encomiendas.pe",
+            estado=EstadoGeneral.ACTIVO,
+            fecha_ingreso=date.today(),
         )
 
     def _crear_encomienda(self, **overrides):
@@ -55,7 +64,7 @@ class EncomiendaModelTests(TestCase):
             "descripcion": "Caja de libros",
             "peso_kg": Decimal("4.5"),
             "costo_envio": Decimal("20.0"),
-            "fecha_entrega_estimada": timezone.localdate() + timedelta(days=2),
+            "fecha_entrega_est": timezone.localdate() + timedelta(days=2),
         }
         data.update(overrides)
         return Encomienda.objects.create(**data)
@@ -74,14 +83,12 @@ class EncomiendaModelTests(TestCase):
 
     def test_crear_con_costo_calculado(self):
         encomienda = Encomienda.crear_con_costo_calculado(
-            codigo="ENC-2026-002",
             remitente=self.remitente,
             destinatario=self.destinatario,
             ruta=self.ruta,
-            empleado_registro=self.empleado,
+            empleado=self.empleado,
             descripcion="Paquete",
             peso_kg=Decimal("2.00"),
-            fecha_entrega_estimada=timezone.localdate() + timedelta(days=1),
         )
         self.assertTrue(encomienda.costo_envio > 0)
 

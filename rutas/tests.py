@@ -1,5 +1,6 @@
 from django.test import TestCase
 
+from config.choices import EstadoGeneral
 from rutas.models import Ruta
 
 
@@ -9,6 +10,9 @@ class RutaModelTests(TestCase):
             codigo="LIM-ARE",
             origen="Lima",
             destino="Arequipa",
+            precio_base=35,
+            dias_entrega=3,
+            estado=EstadoGeneral.ACTIVO,
             distancia_km=1000,
             activa=True,
         )
@@ -16,6 +20,9 @@ class RutaModelTests(TestCase):
             codigo="TRU-PIU",
             origen="Trujillo",
             destino="Piura",
+            precio_base=20,
+            dias_entrega=2,
+            estado=EstadoGeneral.DE_BAJA,
             distancia_km=500,
             activa=False,
         )

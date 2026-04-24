@@ -1,15 +1,20 @@
 from django.db import models
 
 
+class EstadoGeneral(models.IntegerChoices):
+    ACTIVO = 1, "Activo"
+    DE_BAJA = 9, "De baja"
+
+
 class TipoDocumento(models.TextChoices):
     DNI = "DNI", "DNI"
-    CE = "CE", "Carnet de Extranjeria"
-    PAS = "PAS", "Pasaporte"
+    RUC = "RUC", "RUC"
+    PASAPORTE = "PAS", "Pasaporte"
 
 
 class EstadoEnvio(models.TextChoices):
     PENDIENTE = "PE", "Pendiente"
     EN_TRANSITO = "TR", "En transito"
+    EN_DESTINO = "DE", "En destino"
     ENTREGADO = "EN", "Entregado"
     DEVUELTO = "DV", "Devuelto"
-    CANCELADO = "CA", "Cancelado"

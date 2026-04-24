@@ -7,26 +7,25 @@ from .models import Empleado, Encomienda, HistorialEstado
 class EncomiendaAdmin(admin.ModelAdmin):
     list_display = (
         "codigo",
-        "estado",
         "remitente",
         "destinatario",
         "ruta",
+        "estado",
         "empleado_registro",
         "fecha_registro",
     )
     list_filter = ("estado", "ruta")
-    search_fields = ("codigo", "descripcion", "remitente__nro_doc", "destinatario__nro_doc")
+    search_fields = ("codigo", "remitente__nro_doc", "destinatario__nro_doc")
+    readonly_fields = ("fecha_registro",)
 
 
 @admin.register(Empleado)
 class EmpleadoAdmin(admin.ModelAdmin):
-    list_display = ("id", "nombres", "apellidos", "nro_doc", "activo")
-    list_filter = ("activo",)
-    search_fields = ("nombres", "apellidos", "nro_doc")
+    list_display = ("codigo", "apellidos", "nombres", "cargo", "estado")
+    search_fields = ("codigo", "apellidos", "nombres")
 
 
 @admin.register(HistorialEstado)
 class HistorialEstadoAdmin(admin.ModelAdmin):
-    list_display = ("id", "encomienda", "estado_anterior", "estado_nuevo", "fecha", "empleado")
-    list_filter = ("estado_nuevo", "fecha")
-    search_fields = ("encomienda__codigo", "observacion")
+    list_display = ("encomienda", "estado_anterior", "estado_nuevo", "empleado", "fecha_cambio")
+    readonly_fields = ("fecha_cambio",)

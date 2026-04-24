@@ -1,82 +1,88 @@
+from datetime import timedelta
 from decimal import Decimal
+import uuid
 
 from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils import timezone
 
 from clientes.models import Cliente
-from config.choices import EstadoEnvio
+from config.choices import EstadoEnvio, EstadoGeneral
 from rutas.models import Ruta
 
 from .querysets import EncomiendaQuerySet
-from .validators import (
-    validar_codigo_encomienda,
-    validar_fecha_no_pasada,
-    validar_peso_kg,
-)
+from .validators import validar_codigo_encomienda, validar_peso_positivo
 
 
 class Empleado(models.Model):
-    nombres = models.CharField(max_length=120)
-    apellidos = models.CharField(max_length=120)
-    nro_doc = models.CharField(max_length=20, unique=True)
-    telefono = models.CharField(max_length=20, blank=True)
-    activo = models.BooleanField(default=True)
-    rutas_asignadas = models.ManyToManyField(Ruta, blank=True, related_name="empleados")
+    codigo = models.CharField(max_length=10, unique=True, null=True, blank=True)
+    nombres = models.CharField(max_length=100)
+    apellidos = models.CharField(max_length=100)
+    cargo = models.CharField(max_length=80, blank=True, null=True)
+    email = models.EmailField(unique=True, null=True, blank=True)
+    telefono = models.CharField(max_length=15, blank=True, null=True)
+    estado = models.IntegerField(choices=EstadoGeneral.choices, default=EstadoGeneral.ACTIVO)
+    fecha_ingreso = models.DateField(null=True, blank=True)
+    rutas_asignadas = models.ManyToManyField(Ruta, blank=True, related_name="empleados_asignados")
 
     def __str__(self):
-        return f"{self.nombres} {self.apellidos}".strip()
+        return f"{self.codigo} - {self.apellidos}, {self.nombres}"
 
     class Meta:
         verbose_name = "Empleado"
         verbose_name_plural = "Empleados"
-        ordering = ["apellidos", "nombres"]
+        ordering = ["apellidos"]
 
 
 class Encomienda(models.Model):
-    codigo = models.CharField(
-        max_length=20, unique=True, validators=[validar_codigo_encomienda]
+    codigo = models.CharField(max_length=20, unique=True, validators=[validar_codigo_encomienda])
+    descripcion = models.TextField()
+    peso_kg = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        validators=[validar_peso_positivo, MinValueValidator(0.01, message="El peso minimo es 0.01 kg")],
     )
+    volumen_cm3 = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+
     remitente = models.ForeignKey(
-        Cliente, on_delete=models.PROTECT, related_name="encomiendas_enviadas"
+        Cliente, on_delete=models.PROTECT, related_name="envios_como_remitente"
     )
     destinatario = models.ForeignKey(
-        Cliente, on_delete=models.PROTECT, related_name="encomiendas_recibidas"
+        Cliente, on_delete=models.PROTECT, related_name="envios_como_destinatario"
     )
-    ruta = models.ForeignKey(
-        Ruta, on_delete=models.PROTECT, related_name="encomiendas"
-    )
+    ruta = models.ForeignKey(Ruta, on_delete=models.PROTECT, related_name="encomiendas")
     empleado_registro = models.ForeignKey(
         Empleado, on_delete=models.PROTECT, related_name="encomiendas_registradas"
     )
-    descripcion = models.CharField(max_length=255)
-    peso_kg = models.DecimalField(
-        max_digits=8, decimal_places=2, validators=[validar_peso_kg]
-    )
-    costo_envio = models.DecimalField(max_digits=10, decimal_places=2)
-    estado = models.CharField(
-        max_length=2, choices=EstadoEnvio.choices, default=EstadoEnvio.PENDIENTE
-    )
-    fecha_registro = models.DateTimeField(default=timezone.now, editable=False)
-    fecha_entrega_estimada = models.DateField(
-        null=True, blank=True, validators=[validar_fecha_no_pasada]
-    )
+
+    estado = models.CharField(max_length=2, choices=EstadoEnvio.choices, default=EstadoEnvio.PENDIENTE)
+    costo_envio = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+    fecha_registro = models.DateTimeField(auto_now_add=True)
+    fecha_entrega_est = models.DateField(null=True, blank=True)
     fecha_entrega_real = models.DateField(null=True, blank=True)
+    observaciones = models.TextField(blank=True, null=True)
 
     objects = EncomiendaQuerySet.as_manager()
 
     def clean(self):
         errors = {}
         if self.remitente_id and self.destinatario_id and self.remitente_id == self.destinatario_id:
-            errors["destinatario"] = "El destinatario debe ser distinto al remitente."
-
-        if self.fecha_entrega_estimada and self.fecha_entrega_estimada < timezone.localdate():
-            errors["fecha_entrega_estimada"] = "La fecha estimada no puede estar en el pasado."
-
-        if self.fecha_entrega_real and self.fecha_entrega_estimada:
-            if self.fecha_entrega_real < self.fecha_entrega_estimada:
-                errors["fecha_entrega_real"] = "La fecha real no puede ser menor a la fecha estimada."
-
+            errors["destinatario"] = ValidationError(
+                "El destinatario no puede ser el mismo que el remitente."
+            )
+        if self.fecha_entrega_est and self.fecha_entrega_est < timezone.now().date():
+            errors["fecha_entrega_est"] = ValidationError(
+                "La fecha de entrega estimada no puede ser en el pasado."
+            )
+        if (
+            self.fecha_entrega_est
+            and self.fecha_entrega_real
+            and self.fecha_entrega_real < self.fecha_entrega_est
+        ):
+            errors["fecha_entrega_real"] = ValidationError(
+                "La fecha de entrega real no puede ser antes de la estimada."
+            )
         if errors:
             raise ValidationError(errors)
 
@@ -85,37 +91,48 @@ class Encomienda(models.Model):
         return super().save(*args, **kwargs)
 
     @property
-    def esta_entregada(self) -> bool:
+    def esta_entregada(self):
         return self.estado == EstadoEnvio.ENTREGADO
 
     @property
-    def tiene_retraso(self) -> bool:
-        if not self.fecha_entrega_estimada:
+    def esta_en_transito(self):
+        return self.estado == EstadoEnvio.EN_TRANSITO
+
+    @property
+    def dias_en_transito(self):
+        if not self.fecha_registro:
+            return 0
+        delta = timezone.now().date() - self.fecha_registro.date()
+        return delta.days
+
+    @property
+    def tiene_retraso(self):
+        if not self.fecha_entrega_est or self.esta_entregada:
             return False
-        if self.estado == EstadoEnvio.ENTREGADO and self.fecha_entrega_real:
-            return self.fecha_entrega_real > self.fecha_entrega_estimada
-        return (
-            self.estado in {EstadoEnvio.PENDIENTE, EstadoEnvio.EN_TRANSITO}
-            and timezone.localdate() > self.fecha_entrega_estimada
-        )
+        return timezone.now().date() > self.fecha_entrega_est
 
     @property
-    def dias_en_transito(self) -> int:
-        base = self.fecha_registro.date()
-        fin = self.fecha_entrega_real or timezone.localdate()
-        return max((fin - base).days, 0)
+    def descripcion_corta(self):
+        return self.descripcion[:50] + "..." if len(self.descripcion) > 50 else self.descripcion
 
+    # Compatibilidad con versiones previas del proyecto.
     @property
-    def descripcion_corta(self) -> str:
-        return (
-            self.descripcion if len(self.descripcion) <= 60 else f"{self.descripcion[:57]}..."
-        )
+    def fecha_entrega_estimada(self):
+        return self.fecha_entrega_est
 
-    def cambiar_estado(self, nuevo_estado: str, empleado=None, observacion: str = ""):
+    @fecha_entrega_estimada.setter
+    def fecha_entrega_estimada(self, value):
+        self.fecha_entrega_est = value
+
+    def cambiar_estado(self, nuevo_estado, empleado, observacion=""):
+        if nuevo_estado == self.estado:
+            raise ValueError(
+                f"La encomienda ya se encuentra en estado {self.get_estado_display()}"
+            )
         estado_anterior = self.estado
         self.estado = nuevo_estado
-        if nuevo_estado == EstadoEnvio.ENTREGADO and not self.fecha_entrega_real:
-            self.fecha_entrega_real = timezone.localdate()
+        if nuevo_estado == EstadoEnvio.ENTREGADO:
+            self.fecha_entrega_real = timezone.now().date()
         self.save()
         HistorialEstado.objects.create(
             encomienda=self,
@@ -126,37 +143,44 @@ class Encomienda(models.Model):
         )
         return self
 
+    def calcular_costo(self):
+        precio_por_kg_extra = Decimal("2.50")
+        peso_base = Decimal("5.0")
+        costo = Decimal(self.ruta.precio_base)
+        if Decimal(self.peso_kg) > peso_base:
+            costo += (Decimal(self.peso_kg) - peso_base) * precio_por_kg_extra
+        return costo.quantize(Decimal("0.01"))
+
     @classmethod
     def crear_con_costo_calculado(
         cls,
-        *,
-        codigo: str,
-        remitente: Cliente,
-        destinatario: Cliente,
-        ruta: Ruta,
-        empleado_registro: Empleado,
-        descripcion: str,
-        peso_kg: Decimal,
-        fecha_entrega_estimada=None,
+        remitente,
+        destinatario,
+        ruta,
+        empleado,
+        descripcion,
+        peso_kg,
+        **kwargs,
     ):
-        costo_base = Decimal("8.00")
-        costo_distancia = Decimal(ruta.distancia_km) * Decimal("0.06")
-        costo_peso = Decimal(peso_kg) * Decimal("1.30")
-        costo_total = (costo_base + costo_distancia + costo_peso).quantize(Decimal("0.01"))
-        return cls.objects.create(
+        codigo = f"ENC-{timezone.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:6].upper()}"
+        fecha_est = timezone.now().date() + timedelta(days=ruta.dias_entrega)
+        encomienda = cls(
             codigo=codigo,
+            descripcion=descripcion,
+            peso_kg=peso_kg,
             remitente=remitente,
             destinatario=destinatario,
             ruta=ruta,
-            empleado_registro=empleado_registro,
-            descripcion=descripcion,
-            peso_kg=peso_kg,
-            costo_envio=costo_total,
-            fecha_entrega_estimada=fecha_entrega_estimada,
+            empleado_registro=empleado,
+            fecha_entrega_est=fecha_est,
+            **kwargs,
         )
+        encomienda.costo_envio = encomienda.calcular_costo()
+        encomienda.save()
+        return encomienda
 
     def __str__(self):
-        return f"{self.codigo} - {self.get_estado_display()}"
+        return f"{self.codigo} [{self.get_estado_display()}]"
 
     class Meta:
         verbose_name = "Encomienda"
@@ -166,24 +190,23 @@ class Encomienda(models.Model):
 
 class HistorialEstado(models.Model):
     encomienda = models.ForeignKey(
-        Encomienda, on_delete=models.CASCADE, related_name="historial_estados"
+        Encomienda, on_delete=models.CASCADE, related_name="historial"
     )
     estado_anterior = models.CharField(max_length=2, choices=EstadoEnvio.choices)
     estado_nuevo = models.CharField(max_length=2, choices=EstadoEnvio.choices)
-    fecha = models.DateTimeField(default=timezone.now, editable=False)
+    observacion = models.TextField(blank=True, null=True)
     empleado = models.ForeignKey(
-        Empleado,
-        on_delete=models.PROTECT,
-        related_name="historiales_creados",
-        null=True,
-        blank=True,
+        Empleado, on_delete=models.PROTECT, related_name="cambios_estado", null=True, blank=True
     )
-    observacion = models.CharField(max_length=255, blank=True)
+    fecha_cambio = models.DateTimeField(default=timezone.now, editable=False)
+
+    # Compatibilidad con versiones previas.
+    @property
+    def fecha(self):
+        return self.fecha_cambio
 
     def __str__(self):
-        return f"{self.encomienda.codigo}: {self.estado_anterior} -> {self.estado_nuevo}"
+        return f"{self.encomienda.codigo}: {self.estado_anterior}->{self.estado_nuevo}"
 
     class Meta:
-        verbose_name = "Historial de estado"
-        verbose_name_plural = "Historiales de estado"
-        ordering = ["-fecha"]
+        ordering = ["-fecha_cambio"]

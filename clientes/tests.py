@@ -1,9 +1,10 @@
 from django.test import TestCase
 
 from clientes.models import Cliente
-from config.choices import TipoDocumento
+from config.choices import EstadoGeneral, TipoDocumento
 from envios.models import Empleado, Encomienda
 from rutas.models import Ruta
+from datetime import date, timedelta
 
 
 class ClienteModelTests(TestCase):
@@ -13,6 +14,7 @@ class ClienteModelTests(TestCase):
             apellidos="Perez",
             tipo_doc=TipoDocumento.DNI,
             nro_doc="12345678",
+            estado=EstadoGeneral.ACTIVO,
             activo=True,
         )
         self.destinatario = Cliente.objects.create(
@@ -20,24 +22,31 @@ class ClienteModelTests(TestCase):
             apellidos="Lopez",
             tipo_doc=TipoDocumento.DNI,
             nro_doc="87654321",
+            estado=EstadoGeneral.DE_BAJA,
             activo=False,
         )
         self.ruta = Ruta.objects.create(
             codigo="LIM-TRU",
             origen="Lima",
             destino="Trujillo",
+            precio_base=25,
+            dias_entrega=2,
+            estado=EstadoGeneral.ACTIVO,
             distancia_km=560,
-            activa=True,
+            activa=True
         )
         self.empleado = Empleado.objects.create(
+            codigo="EMP001",
             nombres="Juan",
             apellidos="Ruiz",
-            nro_doc="44556677",
-            activo=True,
+            cargo="Operador",
+            email="juan@test.com",
+            estado=EstadoGeneral.ACTIVO,
+            fecha_ingreso=date.today(),
         )
 
     def test_propiedades_cliente(self):
-        self.assertEqual(self.remitente.nombre_completo, "Carlos Perez")
+        self.assertEqual(self.remitente.nombre_completo, "Perez, Carlos")
         self.assertTrue(self.remitente.esta_activo)
 
     def test_total_encomiendas_enviadas(self):
@@ -50,6 +59,7 @@ class ClienteModelTests(TestCase):
             descripcion="Caja mediana",
             peso_kg=5,
             costo_envio=25,
+            fecha_entrega_est=date.today() + timedelta(days=1),
         )
         self.assertEqual(self.remitente.total_encomiendas_enviadas, 1)
 

@@ -1,39 +1,41 @@
 from django.db import models
 from django.utils import timezone
 
-from config.choices import TipoDocumento
+from config.choices import EstadoGeneral, TipoDocumento
 from envios.querysets import ClienteQuerySet
+from envios.validators import validar_nro_doc_dni
 
 
 class Cliente(models.Model):
-    nombres = models.CharField(max_length=120)
-    apellidos = models.CharField(max_length=120)
-    tipo_doc = models.CharField(
-        max_length=3, choices=TipoDocumento.choices, default=TipoDocumento.DNI
-    )
-    nro_doc = models.CharField(max_length=20, unique=True)
-    telefono = models.CharField(max_length=20, blank=True)
-    email = models.EmailField(blank=True)
-    direccion = models.CharField(max_length=255, blank=True)
-    activo = models.BooleanField(default=True)
+    tipo_doc = models.CharField(max_length=3, choices=TipoDocumento.choices, default=TipoDocumento.DNI)
+    nro_doc = models.CharField(max_length=15, unique=True, validators=[validar_nro_doc_dni])
+    nombres = models.CharField(max_length=100)
+    apellidos = models.CharField(max_length=100)
+    telefono = models.CharField(max_length=15, blank=True, null=True)
+    email = models.EmailField(blank=True, null=True)
+    direccion = models.TextField(blank=True, null=True)
+    estado = models.IntegerField(choices=EstadoGeneral.choices, default=EstadoGeneral.ACTIVO)
     fecha_registro = models.DateTimeField(default=timezone.now, editable=False)
+
+    # Compatibilidad con versiones previas.
+    activo = models.BooleanField(default=True)
 
     objects = ClienteQuerySet.as_manager()
 
     @property
     def nombre_completo(self) -> str:
-        return f"{self.nombres} {self.apellidos}".strip()
+        return f"{self.apellidos}, {self.nombres}".strip(", ")
 
     @property
     def esta_activo(self) -> bool:
-        return self.activo
+        return self.estado == EstadoGeneral.ACTIVO
 
     @property
     def total_encomiendas_enviadas(self) -> int:
-        return self.encomiendas_enviadas.count()
+        return self.envios_como_remitente.count()
 
     def __str__(self):
-        return f"{self.nombre_completo} ({self.nro_doc})"
+        return f"{self.nro_doc} - {self.apellidos}, {self.nombres}"
 
     class Meta:
         verbose_name = "Cliente"
