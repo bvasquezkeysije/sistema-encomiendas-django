@@ -1,0 +1,32 @@
+﻿{% extends 'base.html' %}
+
+{% block title %}Nueva Encomienda{% endblock %}
+
+{% block content %}
+<h2 class="h3 mb-3">Registrar nueva encomienda</h2>
+
+<form method="post" class="card shadow">
+  {% csrf_token %}
+  <div class="card-body">
+    {% if form.non_field_errors %}
+    <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    <div class="row g-3">
+      {% for field in form %}
+      <div class="col-md-6">
+        <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {% if field.errors %}
+        <div class="text-danger small">{{ field.errors|join:', ' }}</div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="card-footer bg-white">
+    <button class="btn btn-primary" type="submit">Guardar</button>
+    <a href="{% url 'encomienda_lista' %}" class="btn btn-outline-secondary">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

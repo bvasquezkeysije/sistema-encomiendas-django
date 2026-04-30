@@ -1,4 +1,6 @@
 services:
+  # Django app (gunicorn) en red interna de Docker.
+  # No publica puerto al host; Nginx le hace proxy interno a web:8000.
   web:
     build: .
     command: sh -c "python wait_for_db.py && python manage.py migrate && python manage.py collectstatic --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3"
@@ -12,6 +14,8 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # Reverse proxy público: recibe tráfico HTTP externo en :80
+  # y lo reenvía a web:8000.
   nginx:
     image: nginx:1.27-alpine
     volumes:
@@ -23,6 +27,7 @@ services:
       - web
     restart: unless-stopped
 
+  # Base de datos PostgreSQL.
   db:
     image: postgres:15-alpine
     volumes:
@@ -41,6 +46,8 @@ services:
       start_period: 5s
     restart: unless-stopped
 
+  # Panel web para administrar PostgreSQL.
+  # Se expone en http://HOST:5050
   pgadmin:
     image: dpage/pgadmin4:latest
     environment:
@@ -54,5 +61,7 @@ services:
     restart: unless-stopped
 
 volumes:
+  # Datos persistentes de PostgreSQL.
   postgres_data:
+  # Archivos estáticos de Django compartidos entre web y nginx.
   static_data:

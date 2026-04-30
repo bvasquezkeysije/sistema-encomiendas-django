@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 
 from decouple import config
 
@@ -12,6 +12,7 @@ def parse_bool(value):
     if normalized in {"0", "false", "f", "no", "n", "off", "release", ""}:
         return False
     raise ValueError(f"Invalid truth value: {value}")
+
 
 SECRET_KEY = config("SECRET_KEY", default="django-insecure-change-me")
 DEBUG = config("DEBUG", cast=parse_bool, default=False)
@@ -83,6 +84,19 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
+STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
+LOGIN_URL = "/login/"
+LOGIN_REDIRECT_URL = "/"
+LOGOUT_REDIRECT_URL = "/login/"
+
+SESSION_ENGINE = "django.contrib.sessions.backends.db"
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+SESSION_COOKIE_AGE = 60 * 60 * 8
+SESSION_COOKIE_SECURE = False
+SESSION_COOKIE_NAME = "encomiendas_session"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

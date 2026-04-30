@@ -1,0 +1,62 @@
+﻿{% extends 'base.html' %}
+
+{% block title %}Detalle de Encomienda{% endblock %}
+
+{% block content %}
+<h2 class="h3 mb-3">Detalle de Encomienda</h2>
+<div class="card shadow mb-4">
+  <div class="card-body">
+    <p><strong>Código:</strong> {{ encomienda.codigo }}</p>
+    <p><strong>Descripción:</strong> {{ encomienda.descripcion }}</p>
+    <p><strong>Remitente:</strong> {{ encomienda.remitente.nombre_completo }}</p>
+    <p><strong>Destinatario:</strong> {{ encomienda.destinatario.nombre_completo }}</p>
+    <p><strong>Ruta:</strong> {{ encomienda.ruta }}</p>
+    <p><strong>Estado:</strong> {{ encomienda.get_estado_display }}</p>
+    <p><strong>Registro:</strong> {{ encomienda.fecha_registro }}</p>
+  </div>
+</div>
+
+<div class="card shadow mb-4">
+  <div class="card-header bg-white"><strong>Cambiar estado</strong></div>
+  <div class="card-body">
+    <form method="post" action="{% url 'encomienda_cambiar_estado' encomienda.pk %}" class="row g-2">
+      {% csrf_token %}
+      <div class="col-md-4">
+        <select name="estado" class="form-select" required>
+          {% for value, label in encomienda._meta.get_field('estado').choices %}
+          <option value="{{ value }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-6">
+        <input name="observacion" class="form-control" placeholder="Observación (opcional)">
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-primary w-100">Actualizar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card shadow">
+  <div class="card-header bg-white"><strong>Historial de estados</strong></div>
+  <div class="table-responsive">
+    <table class="table table-sm mb-0">
+      <thead><tr><th>Fecha</th><th>Anterior</th><th>Nuevo</th><th>Empleado</th><th>Obs.</th></tr></thead>
+      <tbody>
+      {% for h in historial %}
+      <tr>
+        <td>{{ h.fecha_cambio }}</td>
+        <td>{{ h.get_estado_anterior_display }}</td>
+        <td>{{ h.get_estado_nuevo_display }}</td>
+        <td>{% if h.empleado %}{{ h.empleado }}{% else %}-{% endif %}</td>
+        <td>{{ h.observacion|default:'-' }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="text-center">Sin cambios de estado</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

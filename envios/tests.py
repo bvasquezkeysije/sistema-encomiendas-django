@@ -1,9 +1,11 @@
-from datetime import timedelta
+﻿from datetime import timedelta
 from decimal import Decimal
 from datetime import date
 
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
+from django.urls import reverse
 from django.utils import timezone
 
 from clientes.models import Cliente
@@ -13,7 +15,17 @@ from rutas.models import Ruta
 
 
 class EnviosSmokeTest(TestCase):
-    def test_home_returns_200(self):
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(username="tester", password="secret123")
+
+    def test_home_redirects_if_not_authenticated(self):
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse("login"), response.url)
+
+    def test_home_returns_200_when_authenticated(self):
+        self.client.login(username="tester", password="secret123")
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
 
