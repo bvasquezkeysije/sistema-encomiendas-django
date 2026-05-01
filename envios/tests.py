@@ -30,6 +30,67 @@ class EnviosSmokeTest(TestCase):
         self.assertEqual(response.status_code, 200)
 
 
+class EncomiendaListaViewTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(username="tester2", password="secret123")
+        self.client.login(username="tester2", password="secret123")
+
+        self.remitente = Cliente.objects.create(
+            nombres="Carlos",
+            apellidos="Perez",
+            tipo_doc=TipoDocumento.DNI,
+            nro_doc="12345679",
+            estado=EstadoGeneral.ACTIVO,
+        )
+        self.destinatario = Cliente.objects.create(
+            nombres="Ana",
+            apellidos="Lopez",
+            tipo_doc=TipoDocumento.DNI,
+            nro_doc="87654322",
+            estado=EstadoGeneral.ACTIVO,
+        )
+        self.ruta = Ruta.objects.create(
+            codigo="LIM-CIX",
+            origen="Lima",
+            destino="Chiclayo",
+            precio_base=25,
+            dias_entrega=2,
+            estado=EstadoGeneral.ACTIVO,
+            distancia_km=560,
+            activa=True,
+        )
+        self.empleado = Empleado.objects.create(
+            codigo="EMP002",
+            nombres="Rosa",
+            apellidos="Mendez",
+            cargo="Operador de envios",
+            email="rosa@encomiendas.pe",
+            estado=EstadoGeneral.ACTIVO,
+            fecha_ingreso=date.today(),
+        )
+
+        for i in range(16):
+            Encomienda.objects.create(
+                codigo=f"ENC-LISTA-{i:03d}",
+                remitente=self.remitente,
+                destinatario=self.destinatario,
+                ruta=self.ruta,
+                empleado_registro=self.empleado,
+                descripcion="Carga",
+                peso_kg=Decimal("1.5"),
+                costo_envio=Decimal("20.0"),
+                fecha_entrega_est=timezone.localdate() + timedelta(days=2),
+                estado=EstadoEnvio.PENDIENTE,
+            )
+
+    def test_lista_is_paginated_with_15_items(self):
+        response = self.client.get(reverse("encomienda_lista"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context["encomiendas"]), 15)
+        self.assertTrue(response.context["encomiendas"].has_next())
+
+
 class EncomiendaModelTests(TestCase):
     def setUp(self):
         self.remitente = Cliente.objects.create(

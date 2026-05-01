@@ -1,5 +1,6 @@
 ﻿from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404, redirect, render
 
 from config.choices import EstadoEnvio
@@ -29,6 +30,7 @@ def dashboard(request):
 def encomienda_lista(request):
     estado = (request.GET.get("estado") or "").strip()
     q = (request.GET.get("q") or "").strip()
+    page_number = request.GET.get("page", 1)
 
     encomiendas = Encomienda.objects.con_relaciones()
     if estado:
@@ -36,11 +38,14 @@ def encomienda_lista(request):
     if q:
         encomiendas = encomiendas.filter(codigo__icontains=q)
 
+    paginator = Paginator(encomiendas, 15)
+    encomiendas_page = paginator.get_page(page_number)
+
     return render(
         request,
         "index.html/lista.html",
         {
-            "encomiendas": encomiendas[:100],
+            "encomiendas": encomiendas_page,
             "estado_actual": estado,
             "q": q,
             "estados": EstadoEnvio.choices,
