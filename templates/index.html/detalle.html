@@ -23,7 +23,7 @@
       {% csrf_token %}
       <div class="col-md-4">
         <select name="estado" class="form-select" required>
-          {% for value, label in encomienda._meta.get_field('estado').choices %}
+          {% for value, label in estados %}
           <option value="{{ value }}">{{ label }}</option>
           {% endfor %}
         </select>

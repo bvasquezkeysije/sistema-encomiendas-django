@@ -60,7 +60,7 @@ def encomienda_detalle(request, pk):
     return render(
         request,
         "index.html/detalle.html",
-        {"encomienda": encomienda, "historial": historial},
+        {"encomienda": encomienda, "historial": historial, "estados": EstadoEnvio.choices},
     )
 
 
